@@ -1,64 +1,112 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-    <style> body { margin: 0; background: #000; overflow: hidden; } </style>
+    <style> body { margin: 0; background: #000; touch-action: none; } </style>
 </head>
 <body>
 <script>
 const config = {
     type: Phaser.AUTO,
     width: 800, height: 450,
-    physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
+    parent: 'game-container',
+    physics: { default: 'arcade' },
     scene: { preload: preload, create: create, update: update }
 };
 
 const game = new Phaser.Game(config);
-let player, lanes = [150, 220, 290, 360], currentLane = 1;
-let stamina = 100, isBonked = false, velocityX = 0;
+let player, obstacles, staminaBar, distanceText;
+let lanes = [180, 250, 320, 390]; 
+let currentLane = 1;
+let stamina = 100;
+let velocityX = 0;
+let isBonked = false;
+let distance = 0;
 
-function preload() {
-    // We'll use colored placeholders since we're local
-}
+function preload() {}
 
 function create() {
-    // Draw simple TC background
-    this.add.rectangle(400, 225, 800, 450, 0x3498db); // Sky
-    this.add.rectangle(400, 300, 800, 300, 0x7f8c8d); // Road
+    // 1. Backgrounds (TC Sky & Road)
+    this.add.rectangle(400, 100, 800, 200, 0x87CEEB); // Sky
+    this.add.rectangle(400, 320, 800, 260, 0x555555); // Front St Asphalt
 
-    // Player "Dirt Church" Bike
+    // 2. The Rider (Dirt Church Green)
     player = this.add.rectangle(150, lanes[currentLane], 40, 40, 0x2ecc71);
-    
-    // Mobile Touch Inputs
+    this.physics.add.existing(player);
+
+    // 3. Obstacles Group (The "Subarus")
+    obstacles = this.physics.add.group();
+
+    // 4. UI Elements
+    this.add.text(20, 20, 'LACTIC ACID', { font: '16px Arial', fill: '#fff' });
+    staminaBar = this.add.rectangle(20, 40, 200, 20, 0x27ae60).setOrigin(0);
+    distanceText = this.add.text(650, 20, 'DIST: 0m', { font: '20px Arial', fill: '#fff' });
+
+    // 5. Mobile Controls
     this.input.on('pointerdown', (pointer) => {
-        if (pointer.x > 400) { // Right side = Pedal
+        if (pointer.x > 400) { 
+            // Pedal Logic
             if (!isBonked) {
-                velocityX += 50;
-                stamina -= 5;
+                velocityX += 12; // Boost speed
+                stamina -= 4;   // Burn energy
+                player.setScale(1.2, 0.8); // "Squish" animation
             }
-        } else { // Left side = Lane Switch
+        } else { 
+            // Lane Switch
             if (pointer.y < 225 && currentLane > 0) currentLane--;
             else if (pointer.y > 225 && currentLane < 3) currentLane++;
         }
     });
 
-    // UI
-    this.staminaBar = this.add.rectangle(20, 20, 200, 20, 0xe74c3c).setOrigin(0);
+    // Spawn obstacles every 1.5 seconds
+    this.time.addEvent({ delay: 1500, callback: spawnObstacle, callbackScope: this, loop: true });
+}
+
+function spawnObstacle() {
+    let laneIdx = Phaser.Math.Between(0, 3);
+    let obs = this.add.rectangle(900, lanes[laneIdx], 60, 30, 0x333333);
+    obstacles.add(obs);
 }
 
 function update() {
-    // Lane movement
-    player.y = Phaser.Math.Linear(player.y, lanes[currentLane], 0.2);
+    // Smooth Lane Transition
+    player.y = Phaser.Math.Linear(player.y, lanes[currentLane], 0.15);
+    player.setScale(Phaser.Math.Linear(player.setScale().x, 1, 0.1));
 
-    // Stamina & Physics
-    velocityX *= 0.95;
-    if (stamina < 100) stamina += 0.2;
-    if (stamina <= 0) isBonked = true;
-    if (stamina > 30) isBonked = false;
+    // Forward Momentum & Friction
+    velocityX *= 0.98; 
+    distance += Math.floor(velocityX / 10);
+    distanceText.setText('DIST: ' + distance + 'm');
 
-    // Update UI
-    this.staminaBar.width = stamina * 2;
-    this.staminaBar.fillColor = isBonked ? 0x555555 : 0xe74c3c;
+    // Move Obstacles based on bike speed
+    obstacles.children.iterate((obs) => {
+        if (obs) {
+            obs.x -= (5 + (velocityX * 0.5)); // Base scroll + player speed
+            if (obs.x < -50) obs.destroy();
+            
+            // Basic Collision
+            if (Phaser.Geom.Intersects.RectangleToRectangle(player.getBounds(), obs.getBounds())) {
+                velocityX = 0; // Crash!
+                obs.destroy();
+                this.cameras.main.shake(200, 0.01);
+            }
+        }
+    });
+
+    // Stamina (Lactic Acid) Management
+    if (stamina < 100) stamina += 0.3;
+    if (stamina <= 0) { isBonked = true; stamina = 0; }
+    if (stamina > 25) isBonked = false;
+
+    // Update UI Bar
+    staminaBar.width = stamina * 2;
+    staminaBar.fillColor = isBonked ? 0xff0000 : 0x27ae60;
+}
+
+function checkCollision(player, obs) {
+    velocityX = 0;
+    obs.destroy();
 }
 </script>
 </body>
