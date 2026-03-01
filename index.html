@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style> body { margin: 0; background: #000; overflow: hidden; } </style>
+</head>
+<body>
+<script>
+const config = {
+    type: Phaser.AUTO,
+    width: 800, height: 450,
+    physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
+    scene: { preload: preload, create: create, update: update }
+};
+
+const game = new Phaser.Game(config);
+let player, lanes = [150, 220, 290, 360], currentLane = 1;
+let stamina = 100, isBonked = false, velocityX = 0;
+
+function preload() {
+    // We'll use colored placeholders since we're local
+}
+
+function create() {
+    // Draw simple TC background
+    this.add.rectangle(400, 225, 800, 450, 0x3498db); // Sky
+    this.add.rectangle(400, 300, 800, 300, 0x7f8c8d); // Road
+
+    // Player "Dirt Church" Bike
+    player = this.add.rectangle(150, lanes[currentLane], 40, 40, 0x2ecc71);
+    
+    // Mobile Touch Inputs
+    this.input.on('pointerdown', (pointer) => {
+        if (pointer.x > 400) { // Right side = Pedal
+            if (!isBonked) {
+                velocityX += 50;
+                stamina -= 5;
+            }
+        } else { // Left side = Lane Switch
+            if (pointer.y < 225 && currentLane > 0) currentLane--;
+            else if (pointer.y > 225 && currentLane < 3) currentLane++;
+        }
+    });
+
+    // UI
+    this.staminaBar = this.add.rectangle(20, 20, 200, 20, 0xe74c3c).setOrigin(0);
+}
+
+function update() {
+    // Lane movement
+    player.y = Phaser.Math.Linear(player.y, lanes[currentLane], 0.2);
+
+    // Stamina & Physics
+    velocityX *= 0.95;
+    if (stamina < 100) stamina += 0.2;
+    if (stamina <= 0) isBonked = true;
+    if (stamina > 30) isBonked = false;
+
+    // Update UI
+    this.staminaBar.width = stamina * 2;
+    this.staminaBar.fillColor = isBonked ? 0x555555 : 0xe74c3c;
+}
+</script>
+</body>
+</html>
